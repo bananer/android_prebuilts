@@ -1,7 +1,6 @@
 # Prebuilt Android Apps
 
 * AuroraServices ([source](https://gitlab.com/AuroraOSS/AuroraServices/-/releases))
-* /e/ Apps ([source](https://gitlab.e.foundation/e/os/android_prebuilts_prebuiltapks/-/tree/master/Apps))
 * Nextcloud ([source](https://f-droid.org/de/packages/com.nextcloud.client/))
 
 Include in your AOSP build using a local manifest file like this:

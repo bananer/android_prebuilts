@@ -1,0 +1,21 @@
+name: Updater
+on:
+  schedule:
+    - cron:  '37 13 * * *'
+  workflow_dispatch:
+jobs:
+  Check-Updates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install pipenv
+        run: pipx install pipenv
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+          cache: 'pipenv'
+          cache-dependency-path: 'updater/Pipfile.lock'
+      - run: pipenv install
+        working-directory: updater
+      - run: python
+        working-directory: updater

@@ -1,61 +1,42 @@
-import requests_cache
-from xml.dom import pulldom
-from xml.dom import minidom
+import urllib.request
 from os import path
 
-requests_session = requests_cache.CachedSession('updater', backend='memory')
+import certificates
+import git
+from sources import ApkRelease, fdroid_recommended_release
 
 
-class ApkRelease:
-    version_name: str
-    version_code: int
-    download_url: str
-
-    def __init__(self, version_name: str, version_code: int, download_url: str):
-        self.version_name = version_name
-        self.version_code = version_code
-        self.download_url = download_url
-
-
-def _child_el_content(el: minidom.Element, tag_name: str):
-    return el.getElementsByTagName(tag_name).item(0).firstChild.data
-
-
-def fdroid_recommended_release(repo: str, application_id: str):
-    with requests_session.get('{}/index.xml'.format(repo)) as r:
-        doc = pulldom.parseString(r.text)
-        for event, node in doc:
-            if event == pulldom.START_ELEMENT and node.tagName == 'application':
-                if node.getAttribute('id') == application_id:
-                    doc.expandNode(node)
-                    marketvercode = _child_el_content(node, 'marketvercode')
-                    for p in node.getElementsByTagName('package'):
-                        if _child_el_content(p, 'versioncode') == marketvercode:
-                            return ApkRelease(
-                                _child_el_content(p, 'version'),
-                                int(marketvercode),
-                                '{}/{}'.format(repo, _child_el_content(p, 'apkname'))
-                            )
-        raise Exception('Did not find {} in repo {}'.format(application_id, repo))
-
-
-def needs_update(module: str, release: ApkRelease):
+def update_if_needed(module: str, release: ApkRelease):
     module_dir = path.abspath(path.join(path.dirname(__file__), '..', module))
     with open(path.join(module_dir, '.version_code'), 'r+') as version_code_file:
         version_code = int(version_code_file.read())
         if version_code < release.version_code:
-            print('{} update to {}'.format(module, release.version_name))
-            return True
+            print('updating {} to {}'.format(module, release.version_name))
+            apk_filename = path.join(module_dir, '{}.apk'.format(module))
+
+            old_sig = certificates.get_apk_certificate(apk_filename)
+
+            print('downloading {} ...'.format(release.download_url))
+            urllib.request.urlretrieve(release.download_url, apk_filename)
+
+            new_sig = certificates.get_apk_certificate(apk_filename)
+            if old_sig != new_sig:
+                raise Exception('Signature mismatch for {} old sig: {} new sig: {}'.format(module, old_sig, new_sig))
+
+            version_code_file.seek(0)
+            version_code_file.write(str(release.version_code))
+            version_code_file.truncate()
+            version_code_file.close()
+
+            print('commit and push...')
+            git.add_commit_push(module_dir, 'Update {} to {}'.format(module, release.version_name))
+
         elif version_code > release.version_code:
             print('{} ahead of suggested version ({} > {})'.format(module, version_code, release.version_code))
-            return False
         elif version_code == release.version_code:
             print('{} up to date.'.format(module))
-            return False
 
 
 fdroid_main_repo = 'https://www.f-droid.org/repo'
 
-exit(1 if any([
-    needs_update('Nextcloud', fdroid_recommended_release(fdroid_main_repo, 'com.nextcloud.client')),
-]) else 0)
+update_if_needed('Nextcloud', fdroid_recommended_release(fdroid_main_repo, 'com.nextcloud.client'))

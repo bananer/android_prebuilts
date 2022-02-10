@@ -14,4 +14,4 @@ def add_commit_push(directory: str, message: str):
     subprocess.run(['git', 'add', '--all', directory], check=True)
     subprocess.run(['git', '-c', 'user.name={}'.format(user_name), '-c', 'user.email={}'.format(user_email),
                     'commit', '--message', message])
-    #subprocess.run(['git', 'push'])
+    subprocess.run(['git', 'push'])
